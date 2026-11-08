@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Database backups & local logs
+*.backup
+*.log
+
+# Environment variables
+.env
+.env.local
+
+# Vercel output
+.vercel
