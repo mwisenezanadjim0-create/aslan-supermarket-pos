@@ -95,7 +95,7 @@ function serveStatic(req, res, pathname) {
   });
 }
 
-const server = http.createServer(async (req, res) => {
+async function handleRequest(req, res) {
   const parsedUrl = url.parse(req.url, true);
   const pathname = parsedUrl.pathname;
   const method = req.method;
@@ -664,19 +664,25 @@ const server = http.createServer(async (req, res) => {
 
   // --- STATIC FILES ---
   serveStatic(req, res, pathname);
-});
+}
 
-// Explicitly bind to '0.0.0.0' so it is available across the entire local Wi-Fi / LAN network
-server.listen(PORT, '0.0.0.0', () => {
-  const ips = getLocalIpAddresses();
-  const primaryIp = ips[0] || 'localhost';
+const server = http.createServer(handleRequest);
 
-  console.log(`====================================================`);
-  console.log(`  🛒 ASLAN SUPERMARKET POS SYSTEM ONLINE ON NETWORK!`);
-  console.log(`  Local Terminal:   http://localhost:${PORT}`);
-  if (primaryIp !== 'localhost') {
-    console.log(`  Wi-Fi / LAN URL:  http://${primaryIp}:${PORT}`);
-  }
-  console.log(`  Other devices on the same Wi-Fi can connect directly!`);
-  console.log(`====================================================`);
-});
+if (require.main === module) {
+  // Explicitly bind to '0.0.0.0' so it is available across the entire local Wi-Fi / LAN network
+  server.listen(PORT, '0.0.0.0', () => {
+    const ips = getLocalIpAddresses();
+    const primaryIp = ips[0] || 'localhost';
+
+    console.log(`====================================================`);
+    console.log(`  🛒 ASLAN SUPERMARKET POS SYSTEM ONLINE ON NETWORK!`);
+    console.log(`  Local Terminal:   http://localhost:${PORT}`);
+    if (primaryIp !== 'localhost') {
+      console.log(`  Wi-Fi / LAN URL:  http://${primaryIp}:${PORT}`);
+    }
+    console.log(`  Other devices on the same Wi-Fi can connect directly!`);
+    console.log(`====================================================`);
+  });
+}
+
+module.exports = { handleRequest, server };

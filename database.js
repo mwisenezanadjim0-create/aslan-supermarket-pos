@@ -1,8 +1,22 @@
 // database.js - SQLite database initialization and queries using Node.js native sqlite
 const { DatabaseSync } = require('node:sqlite');
 const path = require('node:path');
+const fs = require('node:fs');
 
-const DB_PATH = path.join(__dirname, 'supermarket.db');
+const isVercel = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+const DB_PATH = isVercel ? path.join('/tmp', 'supermarket.db') : path.join(__dirname, 'supermarket.db');
+
+if (isVercel && !fs.existsSync(DB_PATH)) {
+  const seedPath = path.join(__dirname, 'supermarket.db');
+  if (fs.existsSync(seedPath)) {
+    try {
+      fs.copyFileSync(seedPath, DB_PATH);
+    } catch (e) {
+      console.warn('Could not copy seed DB to /tmp:', e);
+    }
+  }
+}
+
 let dbInstance = null;
 
 function getDb() {
