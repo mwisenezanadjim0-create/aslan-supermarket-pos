@@ -46,6 +46,14 @@ function sendJson(res, statusCode, data) {
 }
 
 function parseJsonBody(req) {
+  if (req.body) {
+    if (typeof req.body === 'object') return Promise.resolve(req.body);
+    try {
+      return Promise.resolve(JSON.parse(req.body));
+    } catch (e) {
+      return Promise.reject(new Error('Invalid JSON format'));
+    }
+  }
   return new Promise((resolve, reject) => {
     let body = '';
     req.on('data', chunk => {
@@ -100,8 +108,8 @@ async function handleRequest(req, res) {
   let pathname = parsedUrl.pathname;
 
   // On Vercel Serverless rewrites, extract the original request path from headers if needed
-  if (pathname === '/api' || pathname === '/api/index.js' || pathname === '/api/') {
-    const matched = req.headers['x-matched-path'] || req.headers['x-vercel-matched-path'];
+  if (pathname === '/api' || pathname === '/api/index.js' || pathname === '/api/' || pathname === '/api/index') {
+    const matched = req.headers['x-matched-path'] || req.headers['x-vercel-matched-path'] || req.headers['x-forwarded-uri'] || req.headers['x-original-url'];
     if (matched) {
       pathname = url.parse(matched).pathname;
     }
@@ -675,9 +683,10 @@ async function handleRequest(req, res) {
   serveStatic(req, res, pathname);
 }
 
-const server = http.createServer(handleRequest);
+let server = null;
 
 if (require.main === module) {
+  server = http.createServer(handleRequest);
   // Explicitly bind to '0.0.0.0' so it is available across the entire local Wi-Fi / LAN network
   server.listen(PORT, '0.0.0.0', () => {
     const ips = getLocalIpAddresses();

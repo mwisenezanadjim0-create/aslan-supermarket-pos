@@ -2,26 +2,19 @@
 const path = require('node:path');
 const fs = require('node:fs');
 
+const isVercel = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.VERCEL_ENV);
+
 let DatabaseSync = null;
-try {
-  DatabaseSync = require('node:sqlite').DatabaseSync;
-} catch (e) {
-  DatabaseSync = null;
-}
-
-const isVercel = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
-const DB_PATH = isVercel ? path.join('/tmp', 'supermarket.db') : path.join(__dirname, 'supermarket.db');
-
-if (isVercel && !fs.existsSync(DB_PATH)) {
-  const seedPath = path.join(__dirname, 'supermarket.db');
-  if (fs.existsSync(seedPath)) {
-    try {
-      fs.copyFileSync(seedPath, DB_PATH);
-    } catch (e) {
-      console.warn('Could not copy seed DB to /tmp:', e);
-    }
+// Only attempt native SQLite when running locally (not in serverless environment)
+if (!isVercel) {
+  try {
+    DatabaseSync = require('node:sqlite').DatabaseSync;
+  } catch (e) {
+    DatabaseSync = null;
   }
 }
+
+const DB_PATH = isVercel ? path.join('/tmp', 'supermarket.db') : path.join(__dirname, 'supermarket.db');
 
 // In-Memory & JSON fallback DB for serverless runtimes lacking native sqlite
 class FallbackDb {
