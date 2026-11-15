@@ -77,30 +77,33 @@ function serveStatic(req, res, pathname) {
   let safePath = pathname === '/' ? '/index.html' : pathname;
   let filePath = path.join(PUBLIC_DIR, safePath);
 
-  // Security check: prevent directory traversal
-  if (!filePath.startsWith(PUBLIC_DIR)) {
-    res.writeHead(403);
-    return res.end('Forbidden');
+  // Check in public/ first, then in root directory
+  if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+    const rootPath = path.join(__dirname, safePath);
+    if (fs.existsSync(rootPath) && fs.statSync(rootPath).isFile()) {
+      filePath = rootPath;
+    } else {
+      filePath = path.join(PUBLIC_DIR, 'index.html');
+      if (!fs.existsSync(filePath)) {
+        filePath = path.join(__dirname, 'index.html');
+      }
+    }
   }
 
-  fs.stat(filePath, (err, stats) => {
-    if (err || !stats.isFile()) {
-      // Fallback to index.html for SPA if not an api call
-      filePath = path.join(PUBLIC_DIR, 'index.html');
-    }
+  const ext = path.extname(filePath).toLowerCase();
+  const contentType = MIME_TYPES[ext] || 'application/octet-stream';
 
-    const ext = path.extname(filePath).toLowerCase();
-    const contentType = MIME_TYPES[ext] || 'application/octet-stream';
-
-    fs.readFile(filePath, (readErr, content) => {
-      if (readErr) {
-        res.writeHead(404);
-        return res.end('File not found');
-      }
-      res.writeHead(200, { 'Content-Type': contentType });
-      res.end(content);
+  try {
+    const content = fs.readFileSync(filePath);
+    res.writeHead(200, {
+      'Content-Type': contentType,
+      'Content-Length': Buffer.byteLength(content)
     });
-  });
+    res.end(content);
+  } catch (readErr) {
+    res.writeHead(404, { 'Content-Type': 'text/plain' });
+    res.end('File not found');
+  }
 }
 
 async function handleRequest(req, res) {
@@ -703,4 +706,7 @@ if (require.main === module) {
   });
 }
 
-module.exports = { handleRequest, server };
+// Export handleRequest as a function so Vercel can invoke server.js directly as the root entrypoint
+module.exports = handleRequest;
+module.exports.handleRequest = handleRequest;
+module.exports.server = server;
