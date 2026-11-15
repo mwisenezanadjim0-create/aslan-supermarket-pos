@@ -94,7 +94,40 @@
       const res = await fetch(url);
       const data = await res.json();
       if (data.success) {
-        products = data.products || [];
+        let prods = data.products || [];
+
+        // If serverless container restarted and returned empty, restore from client backup
+        if (prods.length === 0 && currentFilter === 'all') {
+          const cached = localStorage.getItem('aslan_pos_products_backup');
+          if (cached) {
+            try {
+              const localProds = JSON.parse(cached);
+              if (Array.isArray(localProds) && localProds.length > 0) {
+                // Re-sync back to server
+                for (const p of localProds) {
+                  await fetch('/api/products', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(p)
+                  });
+                }
+                const retryRes = await fetch(url);
+                const retryData = await retryRes.json();
+                if (retryData.success && retryData.products) {
+                  prods = retryData.products;
+                }
+              }
+            } catch (syncErr) {
+              console.warn('Client sync error:', syncErr);
+            }
+          }
+        }
+
+        products = prods;
+        if (products.length > 0 && currentFilter === 'all') {
+          localStorage.setItem('aslan_pos_products_backup', JSON.stringify(products));
+        }
+
         updateKPIs();
         populateCategories();
         renderTable();
@@ -323,6 +356,8 @@
       const res = await fetch(`/api/products/${id}`, { method: 'DELETE' });
       const data = await res.json();
       if (data.success) {
+        products = products.filter(p => p.id !== id);
+        localStorage.setItem('aslan_pos_products_backup', JSON.stringify(products));
         loadProducts();
         if (window.POS && window.POS.loadProducts) window.POS.loadProducts();
       }
