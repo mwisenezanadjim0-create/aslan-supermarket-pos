@@ -650,6 +650,88 @@
       });
     }
 
+    // Database Backup & Restore handlers
+    const btnDownloadBackup = document.getElementById('btnDownloadBackup');
+    const inputRestoreBackup = document.getElementById('inputRestoreBackup');
+    const backupStatus = document.getElementById('backupRestoreStatus');
+
+    if (btnDownloadBackup) {
+      btnDownloadBackup.addEventListener('click', async () => {
+        try {
+          btnDownloadBackup.textContent = '⏳ Preparing Backup...';
+          const res = await fetch('/api/backup');
+          const data = await res.json();
+          const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = `aslan-pos-backup-${new Date().toISOString().slice(0, 10)}.json`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          btnDownloadBackup.textContent = '📥 Download Full Database Backup (.json)';
+          if (backupStatus) {
+            backupStatus.textContent = '✓ Backup downloaded successfully!';
+            backupStatus.style.color = '#059669';
+            backupStatus.style.display = 'block';
+            setTimeout(() => { backupStatus.style.display = 'none'; }, 4000);
+          }
+        } catch (err) {
+          console.error('Backup error:', err);
+          btnDownloadBackup.textContent = '📥 Download Full Database Backup (.json)';
+          alert('Failed to download backup: ' + err.message);
+        }
+      });
+    }
+
+    if (inputRestoreBackup) {
+      inputRestoreBackup.addEventListener('change', async (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        if (!confirm(`Restore database from "${file.name}"? This will import all products and settings.`)) {
+          inputRestoreBackup.value = '';
+          return;
+        }
+
+        try {
+          if (backupStatus) {
+            backupStatus.textContent = '⏳ Restoring database...';
+            backupStatus.style.color = '#2563eb';
+            backupStatus.style.display = 'block';
+          }
+          const text = await file.text();
+          const backupJson = JSON.parse(text);
+
+          const res = await fetch('/api/restore', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(backupJson)
+          });
+          const result = await res.json();
+
+          if (result.success) {
+            if (backupJson.products) {
+              localStorage.setItem('aslan_pos_products_backup', JSON.stringify(backupJson.products));
+            }
+            if (backupStatus) {
+              backupStatus.textContent = `✓ ${result.message}`;
+              backupStatus.style.color = '#059669';
+            }
+            alert(`✓ Restore Complete: ${result.message}`);
+            if (window.Inventory && window.Inventory.loadProducts) window.Inventory.loadProducts();
+            if (window.POS && window.POS.loadProducts) window.POS.loadProducts();
+            loadSettings();
+          } else {
+            alert('Restore failed: ' + result.message);
+          }
+        } catch (err) {
+          console.error('Restore error:', err);
+          alert('Invalid backup file: ' + err.message);
+        } finally {
+          inputRestoreBackup.value = '';
+        }
+      });
+    }
+
     if (form) {
       form.addEventListener('submit', async (e) => {
         e.preventDefault();

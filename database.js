@@ -299,6 +299,11 @@ class FallbackDb {
         all: (orderId) => self.orderItems.filter(item => item.order_id === Number(orderId))
       };
     }
+    if (s.startsWith('SELECT * FROM order_items')) {
+      return {
+        all: () => [...self.orderItems]
+      };
+    }
     if (s.startsWith('SELECT * FROM orders')) {
       return {
         all: (...params) => {
@@ -386,6 +391,8 @@ function getDb() {
       try {
         dbInstance = new DatabaseSync(DB_PATH);
         dbInstance.exec('PRAGMA foreign_keys = ON;');
+        dbInstance.exec('PRAGMA journal_mode = WAL;');
+        dbInstance.exec('PRAGMA synchronous = NORMAL;');
         initSchema(dbInstance);
       } catch (err) {
         console.warn('DatabaseSync initialization failed, using FallbackDb:', err.message);

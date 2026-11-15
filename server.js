@@ -674,6 +674,82 @@ async function handleRequest(req, res) {
         });
       }
 
+      // 16. GET /api/backup - Download complete database snapshot (JSON)
+      if (pathname === '/api/backup' && method === 'GET') {
+        const settings = db.prepare('SELECT key, value FROM settings').all();
+        const products = db.prepare('SELECT * FROM products').all();
+        const orders = db.prepare('SELECT * FROM orders').all();
+        const orderItems = db.prepare('SELECT * FROM order_items').all();
+
+        const backupData = {
+          version: '1.0',
+          timestamp: new Date().toISOString(),
+          store: 'Aslan Supermarket',
+          settings,
+          products,
+          orders,
+          orderItems
+        };
+
+        // Also save to local backups directory if on server
+        try {
+          const backupsDir = path.join(__dirname, 'backups');
+          if (!fs.existsSync(backupsDir)) fs.mkdirSync(backupsDir, { recursive: true });
+          const filename = `aslan-backup-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+          fs.writeFileSync(path.join(backupsDir, filename), JSON.stringify(backupData, null, 2));
+        } catch (e) {}
+
+        res.writeHead(200, {
+          'Content-Type': 'application/json',
+          'Content-Disposition': `attachment; filename="aslan-pos-backup-${new Date().toISOString().slice(0, 10)}.json"`
+        });
+        return res.end(JSON.stringify(backupData, null, 2));
+      }
+
+      // 17. POST /api/restore - Restore database from uploaded JSON backup
+      if (pathname === '/api/restore' && method === 'POST') {
+        const backup = await parseJsonBody(req);
+        if (!backup || !backup.products) {
+          return sendJson(res, 400, { success: false, message: 'Invalid backup file format' });
+        }
+
+        // Restore products
+        let restoredCount = 0;
+        for (const p of backup.products) {
+          const existing = db.prepare('SELECT id FROM products WHERE barcode = ?').get(p.barcode);
+          if (existing) {
+            db.prepare(`
+              UPDATE products
+              SET name = ?, category = ?, cost_price = ?, selling_price = ?, stock = ?,
+                  low_stock_threshold = ?, unit = ?, expiry_date = ?, supplier = ?
+              WHERE barcode = ?
+            `).run(p.name, p.category, p.cost_price, p.selling_price, p.stock,
+                   p.low_stock_threshold || 5, p.unit || 'pcs', p.expiry_date, p.supplier || '', p.barcode);
+          } else {
+            db.prepare(`
+              INSERT INTO products (barcode, name, category, cost_price, selling_price, stock, low_stock_threshold, unit, expiry_date, supplier)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).run(p.barcode, p.name, p.category, p.cost_price, p.selling_price, p.stock,
+                   p.low_stock_threshold || 5, p.unit || 'pcs', p.expiry_date, p.supplier || '');
+          }
+          restoredCount++;
+        }
+
+        // Restore settings if present
+        if (Array.isArray(backup.settings)) {
+          const stmt = db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
+          for (const s of backup.settings) {
+            if (s.key && s.value) stmt.run(s.key, s.value);
+          }
+        }
+
+        return sendJson(res, 200, {
+          success: true,
+          message: `Successfully restored ${restoredCount} products!`,
+          restoredCount
+        });
+      }
+
       // Fallback for unmatched API routes
       return sendJson(res, 404, { success: false, message: 'API route not found' });
     } catch (err) {

@@ -1,0 +1,54 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-11-15T10:11:56.855Z",
+  "store": "Aslan Supermarket",
+  "settings": [
+    {
+      "key": "store_name",
+      "value": "Aslan Supermarket"
+    },
+    {
+      "key": "store_tagline",
+      "value": "Freshness & Quality Daily"
+    },
+    {
+      "key": "receipt_footer",
+      "value": "Thank you for shopping at Aslan Supermarket!\nReturns accepted within 7 days with valid receipt.\nHave a wonderful day!"
+    },
+    {
+      "key": "auto_print_receipt",
+      "value": "true"
+    },
+    {
+      "key": "epson_paper_width",
+      "value": "80mm"
+    },
+    {
+      "key": "db_initialized",
+      "value": "true"
+    },
+    {
+      "key": "store_phone",
+      "value": "+250 700 000 000"
+    },
+    {
+      "key": "store_address",
+      "value": "Kigali, Rwanda"
+    },
+    {
+      "key": "store_email",
+      "value": "info@aslansupermarket.rw"
+    },
+    {
+      "key": "currency_symbol",
+      "value": "RWF"
+    },
+    {
+      "key": "tax_rate",
+      "value": "18.0"
+    }
+  ],
+  "products": [],
+  "orders": [],
+  "orderItems": []
+}
