@@ -97,7 +97,16 @@ function serveStatic(req, res, pathname) {
 
 async function handleRequest(req, res) {
   const parsedUrl = url.parse(req.url, true);
-  const pathname = parsedUrl.pathname;
+  let pathname = parsedUrl.pathname;
+
+  // On Vercel Serverless rewrites, extract the original request path from headers if needed
+  if (pathname === '/api' || pathname === '/api/index.js' || pathname === '/api/') {
+    const matched = req.headers['x-matched-path'] || req.headers['x-vercel-matched-path'];
+    if (matched) {
+      pathname = url.parse(matched).pathname;
+    }
+  }
+
   const method = req.method;
 
   // CORS preflight

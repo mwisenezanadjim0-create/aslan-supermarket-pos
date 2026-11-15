@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aslan Supermarket POS System</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <!-- TOP NAVIGATION HEADER -->
+  <header class="app-header no-print">
+    <div class="header-brand">
+      <div class="brand-logo">🛒</div>
+      <div>
+        <h1 class="brand-title">ASLAN SUPERMARKET</h1>
+        <p class="brand-subtitle">Point of Sale & Inventory Management</p>
+      </div>
+    </div>
+
+    <!-- MAIN TABS -->
+    <nav class="nav-tabs">
+      <button class="nav-tab active" data-tab="pos" id="tabBtnPos">
+        <span class="tab-icon">🏪</span>
+        <span class="tab-label">POS Register <kbd>F1</kbd></span>
+      </button>
+      <button class="nav-tab" data-tab="inventory" id="tabBtnInventory">
+        <span class="tab-icon">📦</span>
+        <span class="tab-label">Inventory & Stock <kbd>F2</kbd></span>
+        <span class="badge badge-warning" id="navExpiringBadge" style="display:none;">0</span>
+      </button>
+      <button class="nav-tab" data-tab="reports" id="tabBtnReports">
+        <span class="tab-icon">📊</span>
+        <span class="tab-label">Reports & Analytics <kbd>F3</kbd></span>
+      </button>
+      <button class="nav-tab" data-tab="history" id="tabBtnHistory">
+        <span class="tab-icon">📜</span>
+        <span class="tab-label">Sales History <kbd>F4</kbd></span>
+      </button>
+      <button class="nav-tab" data-tab="settings" id="tabBtnSettings">
+        <span class="tab-icon">⚙️</span>
+        <span class="tab-label">Settings <kbd>F5</kbd></span>
+      </button>
+    </nav>
+
+    <!-- HEADER RIGHT CONTROLS -->
+    <div class="header-actions">
+      <button class="btn btn-outline btn-sm" id="btnNetworkModal" title="Open POS on phones/tablets over local Wi-Fi">
+        <span class="wifi-icon">🌐</span>
+        <span id="headerNetworkIp">Wi-Fi: 192.168.1.101</span>
+      </button>
+      <button class="btn btn-outline btn-sm" id="btnTestHardware" title="Test USB Barcode Scanner & Epson Thermal Printer">
+        🔌 Hardware Setup
+      </button>
+      <button class="btn btn-outline btn-sm" id="btnOpenExpiryAlerts" title="View Expiry & Low Stock Alerts">
+        <span class="bell-icon">🔔</span>
+        <span id="alertsSummaryCount" class="badge badge-danger">0</span>
+      </button>
+      <button class="btn btn-outline btn-sm" id="btnToggleSound" title="Toggle Sound Beeps">
+        <span id="soundIcon">🔊</span>
+      </button>
+      <button class="btn btn-outline btn-sm" id="btnHelpShortcuts" title="Keyboard Shortcuts">
+        ⌨️ Shortcuts
+      </button>
+      <div class="header-clock" id="headerClock">--:--:--</div>
+    </div>
+  </header>
+
+  <!-- MAIN APP CONTAINER -->
+  <main class="app-main no-print">
+
+    <!-- ==================== TAB 1: POS REGISTER ==================== -->
+    <section id="view-pos" class="tab-view active">
+      <div class="pos-layout">
+
+        <!-- LEFT PANEL: PRODUCT SEARCH & CATALOG -->
+        <div class="pos-products-panel">
+          <!-- BARCODE & SEARCH BAR -->
+          <div class="pos-search-card">
+            <div class="search-input-wrapper">
+              <span class="search-icon">🔍</span>
+              <input type="text" id="posSearchInput" class="form-control pos-search-input"
+                     placeholder="Scan barcode or type product name/SKU... (Auto-focus active)"
+                     autocomplete="off" autofocus>
+              <button class="btn btn-primary" id="btnOpenCamScanner" title="Use Webcam to scan barcode">
+                📷 Camera Scan
+              </button>
+            </div>
+            <div class="scanner-status-indicator">
+              <span class="indicator-dot live"></span>
+              <span id="scannerStatusText">Barcode Scanner Active • Ready to scan</span>
+              <span class="scanner-shortcut-hint">Press <kbd>F2</kbd> or <kbd>/</kbd> to focus</span>
+            </div>
+          </div>
+
+          <!-- CATEGORY PILLS -->
+          <div class="pos-categories" id="posCategoryPills">
+            <button class="cat-pill active" data-category="All">All Categories</button>
+            <!-- Injected dynamically -->
+          </div>
+
+          <!-- PRODUCT GRID -->
+          <div class="pos-products-container">
+            <div class="products-grid" id="posProductsGrid">
+              <!-- Products injected dynamically -->
+            </div>
+            <div id="posNoProducts" class="empty-state" style="display:none;">
+              <div class="empty-icon">🔍</div>
+              <p>No matching products found.</p>
+              <button class="btn btn-secondary btn-sm" id="btnQuickAddProduct">Add New Product</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT PANEL: ACTIVE CART & CHECKOUT -->
+        <div class="pos-cart-panel">
+          <div class="cart-card">
+            <!-- CART HEADER -->
+            <div class="cart-header">
+              <div class="cart-header-title">
+                <h2>Current Order</h2>
+                <span class="badge badge-info" id="cartItemCount">0 items</span>
+              </div>
+              <div class="cart-header-actions">
+                <button class="btn btn-outline btn-xs" id="btnHoldCart" title="Hold Cart (F8)">⏸️ Hold</button>
+                <button class="btn btn-outline btn-xs" id="btnRecallCart" title="Recall Held Carts">📂 Recall (<span id="heldCount">0</span>)</button>
+                <button class="btn btn-danger-outline btn-xs" id="btnClearCart" title="Clear Cart (Esc)">🗑️ Clear</button>
+              </div>
+            </div>
+
+            <!-- CUSTOMER & CASHIER BAR -->
+            <div class="cart-meta-bar">
+              <div class="meta-field">
+                <label>Customer:</label>
+                <input type="text" id="cartCustomerName" class="meta-input" value="Walk-in Customer">
+              </div>
+              <div class="meta-field">
+                <label>Cashier:</label>
+                <span id="cartCashierName" class="meta-value">Cashier 1</span>
+              </div>
+            </div>
+
+            <!-- CART ITEMS LIST -->
+            <div class="cart-items-wrapper">
+              <table class="cart-table">
+                <thead>
+                  <tr>
+                    <th style="width: 44%;">Item</th>
+                    <th style="width: 20%; text-align: center;">Qty</th>
+                    <th style="width: 18%; text-align: right;">Price</th>
+                    <th style="width: 18%; text-align: right;">Total</th>
+                    <th style="width: 5%;"></th>
+                  </tr>
+                </thead>
+                <tbody id="cartTableBody">
+                  <!-- Cart items injected dynamically -->
+                </tbody>
+              </table>
+              <div id="cartEmptyState" class="empty-cart-message">
+                <div class="empty-cart-icon">🛒</div>
+                <p><strong>Cart is empty</strong></p>
+                <p class="text-muted">Scan a barcode or click any product to begin sale</p>
+              </div>
+            </div>
+
+            <!-- CART SUMMARY & TOTALS -->
+            <div class="cart-summary-box">
+              <div class="summary-line">
+                <span>Subtotal:</span>
+                <span id="cartSubtotal" class="summary-val">0 RWF</span>
+              </div>
+              <div class="summary-line">
+                <div class="discount-label">
+                  <span>Discount:</span>
+                  <input type="number" id="cartDiscountInput" min="0" step="100" value="0" class="mini-input">
+                  <select id="cartDiscountType" class="mini-select">
+                    <option value="amount">RWF</option>
+                    <option value="percent">%</option>
+                  </select>
+                </div>
+                <span id="cartDiscountVal" class="summary-val">-0 RWF</span>
+              </div>
+              <div class="summary-line">
+                <span>Tax (<span id="cartTaxRateDisplay">18%</span>):</span>
+                <span id="cartTaxVal" class="summary-val">0 RWF</span>
+              </div>
+              <div class="summary-line grand-total-line">
+                <span>TOTAL DUE:</span>
+                <span id="cartGrandTotal" class="grand-total-val">0 RWF</span>
+              </div>
+            </div>
+
+            <!-- PAYMENT CONTROLS -->
+            <div class="cart-payment-section">
+              <div class="payment-method-tabs">
+                <button class="pm-tab active" data-method="Cash">💵 Cash</button>
+                <button class="pm-tab" data-method="Card">💳 Card</button>
+                <button class="pm-tab" data-method="Mobile">📱 MoMo / Mobile</button>
+              </div>
+
+              <!-- CASH QUICK BUTTONS (RWANDAN FRANCS) -->
+              <div id="cashTenderControls" class="cash-tender-box">
+                <div class="quick-cash-buttons">
+                  <button class="btn-cash" data-cash="exact">Exact</button>
+                  <button class="btn-cash" data-cash="1000">1,000</button>
+                  <button class="btn-cash" data-cash="2000">2,000</button>
+                  <button class="btn-cash" data-cash="5000">5,000</button>
+                  <button class="btn-cash" data-cash="10000">10,000</button>
+                  <button class="btn-cash" data-cash="20000">20,000</button>
+                </div>
+                <div class="tender-input-row">
+                  <div class="tender-field">
+                    <label>Amount Tendered:</label>
+                    <div class="input-currency-wrapper">
+                      <span class="currency-prefix">RWF</span>
+                      <input type="number" id="cashTenderInput" min="0" step="100" class="form-control" placeholder="0">
+                    </div>
+                  </div>
+                  <div class="tender-field">
+                    <label>Change Due:</label>
+                    <div id="changeDueDisplay" class="change-due-box">0 RWF</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- CHECKOUT ACTION BUTTONS -->
+              <div class="cart-action-buttons">
+                <button class="btn btn-success btn-lg btn-block" id="btnCompleteSale">
+                  <span class="btn-icon">✅</span>
+                  <span>COMPLETE SALE & PRINT (F9)</span>
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ==================== TAB 2: INVENTORY & STOCK ==================== -->
+    <section id="view-inventory" class="tab-view">
+      <div class="inventory-container">
+
+        <!-- INVENTORY HEADER & STATS -->
+        <div class="inventory-header">
+          <div>
+            <h2>Inventory & Stock Management</h2>
+            <p class="text-muted">Track stock levels, monitor expiry dates, manage prices and generate barcode labels</p>
+          </div>
+          <div class="inventory-top-actions">
+            <button class="btn btn-primary" id="btnAddNewProduct">
+              ➕ Add New Product
+            </button>
+            <button class="btn btn-outline" id="btnExportInventoryCSV">
+              📥 Export CSV
+            </button>
+          </div>
+        </div>
+
+        <!-- STATS KPI PILLS -->
+        <div class="inventory-stats-bar">
+          <div class="stat-pill">
+            <div class="stat-num" id="invTotalProducts">0</div>
+            <div class="stat-lbl">Total Products</div>
+          </div>
+          <div class="stat-pill">
+            <div class="stat-num" id="invTotalStockUnits">0</div>
+            <div class="stat-lbl">Total Stock Units</div>
+          </div>
+          <div class="stat-pill stat-warning">
+            <div class="stat-num" id="invLowStockCount">0</div>
+            <div class="stat-lbl">Low Stock Items</div>
+          </div>
+          <div class="stat-pill stat-danger">
+            <div class="stat-num" id="invExpiringSoonCount">0</div>
+            <div class="stat-lbl">Expiring in &le; 7 Days</div>
+          </div>
+          <div class="stat-pill stat-expired">
+            <div class="stat-num" id="invExpiredCount">0</div>
+            <div class="stat-lbl">Expired Items</div>
+          </div>
+        </div>
+
+        <!-- FILTER & SEARCH BAR -->
+        <div class="inventory-controls-card">
+          <div class="filter-tabs">
+            <button class="filter-tab active" data-filter="all">All Items</button>
+            <button class="filter-tab tab-danger" data-filter="expired">🔴 Expired (<span id="filterCountExpired">0</span>)</button>
+            <button class="filter-tab tab-warning" data-filter="expiring_soon">🟠 Expiring Soon (<span id="filterCountExpSoon">0</span>)</button>
+            <button class="filter-tab tab-amber" data-filter="low_stock">⚠️ Low Stock (<span id="filterCountLowStock">0</span>)</button>
+          </div>
+          <div class="inventory-search-row">
+            <input type="text" id="invSearchInput" class="form-control" placeholder="Search by name, barcode, supplier...">
+            <select id="invCategorySelect" class="form-control form-select">
+              <option value="All">All Categories</option>
+            </select>
+            <button class="btn btn-outline" id="btnRefreshInventory">🔄 Refresh</button>
+          </div>
+        </div>
+
+        <!-- INVENTORY TABLE -->
+        <div class="table-responsive-card">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width: 14%;">Barcode</th>
+                <th style="width: 22%;">Product Name</th>
+                <th style="width: 12%;">Category</th>
+                <th style="width: 10%;">Cost / Sell</th>
+                <th style="width: 13%;">Stock Remaining</th>
+                <th style="width: 15%;">Expiry Date</th>
+                <th style="width: 14%; text-align: center;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="inventoryTableBody">
+              <!-- Products injected dynamically -->
+            </tbody>
+          </table>
+          <div id="invEmptyMessage" class="empty-state" style="display:none;">
+            <p>No products found matching the criteria.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ==================== TAB 3: REPORTS & ANALYTICS ==================== -->
+    <section id="view-reports" class="tab-view">
+      <div class="reports-container">
+
+        <!-- REPORTS HEADER -->
+        <div class="reports-header">
+          <div>
+            <h2>Sales Reports & Financial Analytics</h2>
+            <p class="text-muted">Track money made Daily, Weekly, Monthly, and Yearly with gross profit breakdown</p>
+          </div>
+          <div class="reports-header-actions">
+            <button class="btn btn-outline" id="btnPrintReport">🖨️ Print Report</button>
+            <button class="btn btn-outline" id="btnExportReportCSV">📥 Export CSV</button>
+          </div>
+        </div>
+
+        <!-- SUMMARY CARDS: DAY, WEEK, MONTH, YEAR -->
+        <div class="kpi-grid">
+          <!-- TODAY'S REVENUE -->
+          <div class="kpi-card kpi-daily">
+            <div class="kpi-top">
+              <span class="kpi-icon">📅</span>
+              <span class="kpi-tag">TODAY</span>
+            </div>
+            <div class="kpi-amount" id="repDailyTotal">0 RWF</div>
+            <div class="kpi-meta">
+              <span class="kpi-sub">Profit: <strong id="repDailyProfit">0 RWF</strong></span>
+              <span class="kpi-sub">Orders: <strong id="repDailyOrders">0</strong></span>
+            </div>
+          </div>
+
+          <!-- THIS WEEK'S REVENUE -->
+          <div class="kpi-card kpi-weekly">
+            <div class="kpi-top">
+              <span class="kpi-icon">📆</span>
+              <span class="kpi-tag">THIS WEEK</span>
+            </div>
+            <div class="kpi-amount" id="repWeeklyTotal">0 RWF</div>
+            <div class="kpi-meta">
+              <span class="kpi-sub">Profit: <strong id="repWeeklyProfit">0 RWF</strong></span>
+              <span class="kpi-sub">Orders: <strong id="repWeeklyOrders">0</strong></span>
+            </div>
+          </div>
+
+          <!-- THIS MONTH'S REVENUE -->
+          <div class="kpi-card kpi-monthly">
+            <div class="kpi-top">
+              <span class="kpi-icon">🗓️</span>
+              <span class="kpi-tag">THIS MONTH</span>
+            </div>
+            <div class="kpi-amount" id="repMonthlyTotal">0 RWF</div>
+            <div class="kpi-meta">
+              <span class="kpi-sub">Profit: <strong id="repMonthlyProfit">0 RWF</strong></span>
+              <span class="kpi-sub">Orders: <strong id="repMonthlyOrders">0</strong></span>
+            </div>
+          </div>
+
+          <!-- THIS YEAR'S REVENUE -->
+          <div class="kpi-card kpi-yearly">
+            <div class="kpi-top">
+              <span class="kpi-icon">📈</span>
+              <span class="kpi-tag">THIS YEAR</span>
+            </div>
+            <div class="kpi-amount" id="repYearlyTotal">0 RWF</div>
+            <div class="kpi-meta">
+              <span class="kpi-sub">Profit: <strong id="repYearlyProfit">0 RWF</strong></span>
+              <span class="kpi-sub">Orders: <strong id="repYearlyOrders">0</strong></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- INTERACTIVE CHART SECTION -->
+        <div class="card chart-card">
+          <div class="chart-header">
+            <div>
+              <h3 id="chartTitle">Revenue & Profit Breakdown</h3>
+              <p class="text-muted" id="chartSubtitle">Daily sales trend</p>
+            </div>
+            <div class="chart-period-tabs">
+              <button class="btn btn-sm btn-outline active" data-period="daily">Daily (7 Days)</button>
+              <button class="btn btn-sm btn-outline" data-period="weekly">Weekly (8 Wks)</button>
+              <button class="btn btn-sm btn-outline" data-period="monthly">Monthly (Jan-Dec)</button>
+              <button class="btn btn-sm btn-outline" data-period="yearly">Yearly</button>
+            </div>
+          </div>
+          <div class="chart-canvas-container">
+            <canvas id="salesChartCanvas" width="900" height="300"></canvas>
+          </div>
+          <div class="chart-legend">
+            <span class="legend-item"><span class="legend-color legend-blue"></span> Sales Revenue (RWF)</span>
+            <span class="legend-item"><span class="legend-color legend-green"></span> Gross Profit (RWF)</span>
+          </div>
+        </div>
+
+        <!-- TWO COLUMN BREAKDOWNS: TOP PRODUCTS & CATEGORY SALES -->
+        <div class="reports-two-col">
+          <!-- TOP SELLING PRODUCTS -->
+          <div class="card">
+            <div class="card-header">
+              <h3>🏆 Top 10 Best-Selling Products</h3>
+            </div>
+            <div class="table-responsive-card">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Product</th>
+                    <th>Category</th>
+                    <th style="text-align:center;">Units Sold</th>
+                    <th style="text-align:right;">Revenue</th>
+                    <th style="text-align:right;">Profit</th>
+                  </tr>
+                </thead>
+                <tbody id="repTopProductsBody">
+                  <!-- Dynamically populated -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- CATEGORY PERFORMANCE -->
+          <div class="card">
+            <div class="card-header">
+              <h3>🏷️ Sales by Category</h3>
+            </div>
+            <div class="table-responsive-card">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Category</th>
+                    <th style="text-align:center;">Units Sold</th>
+                    <th style="text-align:right;">Total Sales</th>
+                    <th style="width: 30%;">Share</th>
+                  </tr>
+                </thead>
+                <tbody id="repCategorySalesBody">
+                  <!-- Dynamically populated -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ==================== TAB 4: SALES HISTORY ==================== -->
+    <section id="view-history" class="tab-view">
+      <div class="history-container">
+        <div class="history-header">
+          <div>
+            <h2>Transaction & Receipt History</h2>
+            <p class="text-muted">Review past transactions and reprint thermal customer receipts</p>
+          </div>
+          <div class="history-filter-row">
+            <input type="text" id="historySearchInput" class="form-control" placeholder="Search receipt number or customer...">
+            <button class="btn btn-outline" id="btnRefreshHistory">🔄 Refresh</button>
+          </div>
+        </div>
+
+        <div class="table-responsive-card">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Receipt #</th>
+                <th>Date & Time</th>
+                <th>Customer</th>
+                <th>Method</th>
+                <th style="text-align:right;">Subtotal</th>
+                <th style="text-align:right;">Tax</th>
+                <th style="text-align:right;">Total Paid</th>
+                <th>Cashier</th>
+                <th style="text-align:center;">Action</th>
+              </tr>
+            </thead>
+            <tbody id="historyTableBody">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+          <div id="historyEmptyMessage" class="empty-state" style="display:none;">
+            <p>No sales history found.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 5: SETTINGS ==================== -->
+    <section id="view-settings" class="tab-view">
+      <div class="settings-container">
+        <div class="card settings-card">
+          <div class="card-header">
+            <h2>Supermarket & POS Configuration</h2>
+            <p class="text-muted">Configure store details, tax rate, currency, and thermal receipt branding</p>
+          </div>
+          <form id="settingsForm" class="settings-form">
+            <div class="form-group">
+              <label>Supermarket Name:</label>
+              <input type="text" id="setStoreName" class="form-control" required>
+            </div>
+            <div class="form-group">
+              <label>Tagline / Motto:</label>
+              <input type="text" id="setStoreTagline" class="form-control">
+            </div>
+            <div class="form-group">
+              <label>Address:</label>
+              <input type="text" id="setStoreAddress" class="form-control">
+            </div>
+            <div class="form-row">
+              <div class="form-group col-6">
+                <label>Phone Number:</label>
+                <input type="text" id="setStorePhone" class="form-control">
+              </div>
+              <div class="form-group col-6">
+                <label>Email Address:</label>
+                <input type="text" id="setStoreEmail" class="form-control">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group col-6">
+                <label>Currency Symbol:</label>
+                <input type="text" id="setCurrencySymbol" class="form-control" value="RWF">
+              </div>
+              <div class="form-group col-6">
+                <label>Tax Rate (%):</label>
+                <input type="number" id="setTaxRate" class="form-control" step="0.1" value="18.0">
+              </div>
+            </div>
+
+            <!-- EPSON PRINTER & USB SCANNER HARDWARE CONFIG -->
+            <div style="background: var(--bg-subtle); padding: 1rem; border-radius: var(--radius-md); border: 1.5px solid var(--border-color); margin-bottom: 1rem;">
+              <h4 style="margin-bottom: 0.6rem; color: #065f46; display: flex; align-items: center; gap: 0.4rem;">
+                🖨️ Epson Thermal Receipt Printer Settings
+              </h4>
+              <div class="form-row">
+                <div class="form-group col-6">
+                  <label>Epson Thermal Roll Width:</label>
+                  <select id="setEpsonWidth" class="form-control form-select">
+                    <option value="80mm" selected>80mm (Standard Epson TM-T88 / TM-T20 / TM-m30)</option>
+                    <option value="58mm">58mm (Compact Epson Thermal)</option>
+                  </select>
+                </div>
+                <div class="form-group col-6">
+                  <label>Auto-Print on Checkout (F9):</label>
+                  <select id="setAutoPrint" class="form-control form-select">
+                    <option value="true" selected>Enabled (Print immediately on sale)</option>
+                    <option value="false">Disabled (Show preview first)</option>
+                  </select>
+                </div>
+              </div>
+              <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                <button type="button" class="btn btn-outline btn-sm" id="btnPrintEpsonTest">
+                  🖨️ Print Epson Test Slip & Alignment
+                </button>
+                <button type="button" class="btn btn-outline btn-sm" id="btnOpenScannerTest">
+                  🔌 Test USB Barcode Scanner
+                </button>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Receipt Footer Note:</label>
+              <textarea id="setReceiptFooter" class="form-control" rows="3"></textarea>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary btn-lg">💾 Save Settings</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ==================== MODALS ==================== -->
+
+  <!-- 1. THERMAL RECEIPT MODAL -->
+  <div class="modal-backdrop" id="receiptModal" style="display:none;">
+    <div class="modal-box modal-receipt">
+      <div class="modal-header no-print">
+        <h3>🧾 Receipt Preview</h3>
+        <button class="btn-close" id="btnCloseReceiptModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="receiptContainer" class="thermal-receipt-paper">
+          <!-- Filled by receipt.js -->
+        </div>
+      </div>
+      <div class="modal-footer no-print">
+        <button class="btn btn-outline" id="btnCloseReceiptModalBtn">Close</button>
+        <button class="btn btn-success btn-lg" id="btnPrintReceiptBtn">🖨️ Print Receipt (Ctrl+P)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. ADD / EDIT PRODUCT MODAL -->
+  <div class="modal-backdrop" id="productModal" style="display:none;">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="productModalTitle">➕ Add New Product</h3>
+        <button class="btn-close" id="btnCloseProductModal">&times;</button>
+      </div>
+      <form id="productForm">
+        <input type="hidden" id="prodFormId">
+        <div class="modal-body">
+          <div class="form-row">
+            <div class="form-group col-8">
+              <label>Barcode / SKU *:</label>
+              <div class="input-with-button">
+                <input type="text" id="prodFormBarcode" class="form-control" required placeholder="e.g. 8901001 or scan">
+                <button type="button" class="btn btn-outline btn-sm" id="btnGenRandomBarcode">Generate</button>
+              </div>
+            </div>
+            <div class="form-group col-4">
+              <label>Unit:</label>
+              <select id="prodFormUnit" class="form-control form-select">
+                <option value="pcs">pcs (Pieces)</option>
+                <option value="bottle">bottle</option>
+                <option value="pack">pack</option>
+                <option value="loaf">loaf</option>
+                <option value="kg">kg (Kilogram)</option>
+                <option value="can">can</option>
+                <option value="box">box</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Product Name *:</label>
+            <input type="text" id="prodFormName" class="form-control" required placeholder="e.g. Fresh Whole Milk 1L">
+          </div>
+
+          <div class="form-row">
+            <div class="form-group col-6">
+              <label>Category <span style="font-weight: normal; color: #059669; font-size: 0.75rem;">(Recommended)</span>:</label>
+              <input type="text" id="prodFormCategory" class="form-control" list="categoryDatalist" placeholder="e.g. Drinks, Food (Defaults to General)">
+              <datalist id="categoryDatalist">
+                <option value="General">
+                <option value="Beverages">
+                <option value="Food & Groceries">
+                <option value="Dairy">
+                <option value="Bakery">
+                <option value="Snacks">
+                <option value="Produce">
+                <option value="Household">
+                <option value="Hygiene & Beauty">
+              </datalist>
+            </div>
+            <div class="form-group col-6">
+              <label>Supplier <span style="font-weight: normal; color: var(--text-muted); font-size: 0.75rem;">(Optional)</span>:</label>
+              <input type="text" id="prodFormSupplier" class="form-control" placeholder="Supplier / Distributor">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group col-6">
+              <label>Cost Price (RWF) <span style="font-weight: normal; color: #059669; font-size: 0.75rem;">(Recommended for profit stats)</span>:</label>
+              <input type="number" id="prodFormCostPrice" class="form-control" step="1" min="0" placeholder="Optional wholesale cost (e.g. 800)">
+            </div>
+            <div class="form-group col-6">
+              <label>Selling Price (RWF) *:</label>
+              <input type="number" id="prodFormSellingPrice" class="form-control" step="1" min="0" required placeholder="e.g. 1200">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group col-4">
+              <label>Initial Stock *:</label>
+              <input type="number" id="prodFormStock" class="form-control" min="0" required value="20">
+            </div>
+            <div class="form-group col-4">
+              <label>Low Stock Alert:</label>
+              <input type="number" id="prodFormLowStock" class="form-control" min="1" value="5">
+            </div>
+            <div class="form-group col-4">
+              <label>Expiry Date *:</label>
+              <input type="date" id="prodFormExpiryDate" class="form-control" required>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" id="btnCancelProductModal">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btnSaveProduct">Save Product</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 3. RESTOCK PRODUCT MODAL -->
+  <div class="modal-backdrop" id="restockModal" style="display:none;">
+    <div class="modal-box modal-sm">
+      <div class="modal-header">
+        <h3>📦 Restock Product</h3>
+        <button class="btn-close" id="btnCloseRestockModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p><strong id="restockProdName">Product Name</strong></p>
+        <p class="text-muted">Current Stock: <span id="restockCurrentStock" class="badge badge-info">0</span></p>
+        <div class="form-group">
+          <label>Units to Add to Stock:</label>
+          <input type="number" id="restockAddUnits" class="form-control" min="1" value="10" autofocus>
+        </div>
+        <div class="form-group">
+          <label>Update Expiry Date (optional):</label>
+          <input type="date" id="restockNewExpiry" class="form-control">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" id="btnCancelRestockModal">Cancel</button>
+        <button type="button" class="btn btn-success" id="btnConfirmRestock">Add Stock</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. CAMERA BARCODE SCANNER MODAL -->
+  <div class="modal-backdrop" id="cameraScannerModal" style="display:none;">
+    <div class="modal-box modal-camera">
+      <div class="modal-header">
+        <h3>📷 Live Camera Barcode Scanner</h3>
+        <button class="btn-close" id="btnCloseCamModal">&times;</button>
+      </div>
+      <div class="modal-body camera-modal-body">
+        <div class="camera-viewport-wrapper">
+          <video id="cameraVideo" autoplay playsinline muted></video>
+          <div class="scanner-aim-box">
+            <div class="laser-line"></div>
+          </div>
+        </div>
+        <p class="camera-instructions">Align any product barcode inside the red box. It will scan and add to cart automatically!</p>
+        <div id="camScanResult" class="cam-scan-feedback"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="btnStopCamScanner">Close Camera</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. BARCODE STICKER LABEL MODAL -->
+  <div class="modal-backdrop" id="barcodeLabelModal" style="display:none;">
+    <div class="modal-box modal-label">
+      <div class="modal-header no-print">
+        <h3>🏷️ Printable Barcode Label</h3>
+        <button class="btn-close" id="btnCloseBarcodeLabelModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="barcodeLabelPaper" class="barcode-sticker-sheet">
+          <!-- Filled by barcode-gen.js -->
+        </div>
+      </div>
+      <div class="modal-footer no-print">
+        <button class="btn btn-outline" id="btnCancelBarcodeLabelModal">Close</button>
+        <button class="btn btn-primary" id="btnPrintBarcodeLabelBtn">🖨️ Print Label</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. EXPIRY & LOW STOCK ALERTS DRAWER / MODAL -->
+  <div class="modal-backdrop" id="expiryAlertsModal" style="display:none;">
+    <div class="modal-box modal-lg">
+      <div class="modal-header">
+        <h3>🔔 Expiry & Inventory Alerts</h3>
+        <button class="btn-close" id="btnCloseAlertsModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="alerts-section">
+          <h4 class="text-danger">🔴 Expired Products (Immediate Action Needed)</h4>
+          <div id="alertsExpiredList" class="alerts-list"></div>
+        </div>
+        <div class="alerts-section" style="margin-top: 1.5rem;">
+          <h4 class="text-warning">🟠 Expiring Soon (Within 7 Days)</h4>
+          <div id="alertsExpiringList" class="alerts-list"></div>
+        </div>
+        <div class="alerts-section" style="margin-top: 1.5rem;">
+          <h4 class="text-amber">⚠️ Low Stock (Under Threshold)</h4>
+          <div id="alertsLowStockList" class="alerts-list"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="btnCloseAlertsModalBtn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. HELD CARTS MODAL -->
+  <div class="modal-backdrop" id="heldCartsModal" style="display:none;">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>📂 Held Carts</h3>
+        <button class="btn-close" id="btnCloseHeldModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="heldCartsList" class="held-carts-list"></div>
+        <div id="noHeldCartsMsg" class="empty-state" style="display:none;">
+          <p>No carts currently on hold.</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="btnCloseHeldModalBtn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8. KEYBOARD SHORTCUTS MODAL -->
+  <div class="modal-backdrop" id="shortcutsModal" style="display:none;">
+    <div class="modal-box modal-sm">
+      <div class="modal-header">
+        <h3>⌨️ Keyboard Shortcuts</h3>
+        <button class="btn-close" id="btnCloseShortcutsModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <table class="shortcuts-table">
+          <tr><td><kbd>F1</kbd></td><td>Switch to POS Register</td></tr>
+          <tr><td><kbd>F2</kbd></td><td>Switch to Inventory</td></tr>
+          <tr><td><kbd>F3</kbd></td><td>Switch to Reports</td></tr>
+          <tr><td><kbd>F4</kbd></td><td>Switch to Sales History</td></tr>
+          <tr><td><kbd>F5</kbd></td><td>Switch to Settings</td></tr>
+          <tr><td><kbd>F9</kbd> or <kbd>Enter</kbd></td><td>Complete Sale & Print Receipt</td></tr>
+          <tr><td><kbd>F8</kbd></td><td>Hold Current Cart</td></tr>
+          <tr><td><kbd>Esc</kbd></td><td>Clear Cart / Close Modal</td></tr>
+          <tr><td><kbd>/</kbd></td><td>Focus Barcode Search Input</td></tr>
+        </table>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" id="btnCloseShortcutsModalBtn">Got it</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 9. USB BARCODE SCANNER & EPSON PRINTER HARDWARE TEST MODAL -->
+  <div class="modal-backdrop" id="hardwareTestModal" style="display:none;">
+    <div class="modal-box modal-lg">
+      <div class="modal-header">
+        <h3>🔌 USB Barcode Scanner & Epson Printer Diagnostics</h3>
+        <button class="btn-close" id="btnCloseHardwareModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-row" style="margin-bottom: 1rem;">
+          <!-- USB SCANNER TEST -->
+          <div class="col-6" style="background: #f8fafc; padding: 1rem; border-radius: var(--radius-md); border: 1.5px solid #cbd5e1;">
+            <h4 style="color: #065f46; margin-bottom: 0.5rem;">🔍 1. USB Barcode Scanner Test</h4>
+            <p class="text-muted" style="font-size: 0.8rem; margin-bottom: 0.75rem;">
+              Connect your USB scanner to the Mac/PC. Pull the trigger on any product barcode below to test:
+            </p>
+            <div class="form-group">
+              <label>Scanner Live Capture Input:</label>
+              <input type="text" id="scannerTestInput" class="form-control" placeholder="Point scanner & pull trigger..." autofocus>
+            </div>
+            <div id="scannerTestResult" style="background: #ffffff; border: 1px solid #cbd5e1; padding: 0.75rem; border-radius: 6px; min-height: 90px; font-size: 0.825rem;">
+              <span class="text-muted">Awaiting scan from USB scanner...</span>
+            </div>
+            <div style="margin-top: 0.5rem; font-size: 0.75rem; color: #64748b;">
+              💡 <em>Tip: Standard sample barcodes to scan: <code>8901001</code> (Milk), <code>8902001</code> (Bread), <code>8903001</code> (Coke)</em>
+            </div>
+          </div>
+
+          <!-- EPSON PRINTER TEST -->
+          <div class="col-6" style="background: #f8fafc; padding: 1rem; border-radius: var(--radius-md); border: 1.5px solid #cbd5e1;">
+            <h4 style="color: #1e40af; margin-bottom: 0.5rem;">🖨️ 2. Epson Thermal Printer Test</h4>
+            <p class="text-muted" style="font-size: 0.8rem; margin-bottom: 0.75rem;">
+              Tested for Epson TM-T88, TM-T20, TM-m30, TM-T70 (80mm & 58mm roll with auto-cut support):
+            </p>
+            <div style="margin-bottom: 0.85rem;">
+              <button class="btn btn-primary btn-block" id="btnRunEpsonPrintTest">
+                🖨️ Print Epson Alignment & Cutter Test Slip
+              </button>
+            </div>
+            <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 0.75rem; font-size: 0.78rem; color: #1e3a8a;">
+              <strong>⚡ Instant Silent Printing (Kiosk Mode):</strong>
+              <p style="margin-top: 3px;">To print without the macOS/browser print dialog appearing every time, launch Chrome with kiosk printing:</p>
+              <code style="display: block; background: #ffffff; padding: 4px; border-radius: 3px; margin-top: 4px; font-family: monospace; font-size: 0.75rem; word-break: break-all;">
+                open -a "Google Chrome" --args --kiosk-printing "http://localhost:3000"
+              </code>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="btnCloseHardwareModalBtn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 10. NETWORK & MOBILE DEVICES MODAL -->
+  <div class="modal-backdrop" id="networkModal" style="display:none;">
+    <div class="modal-box modal-md">
+      <div class="modal-header">
+        <h3>🌐 Connect Other Devices (Wi-Fi / LAN)</h3>
+        <button class="btn-close" id="btnCloseNetworkModal">&times;</button>
+      </div>
+      <div class="modal-body" style="text-align: center;">
+        <p class="text-muted" style="margin-bottom: 1rem; font-size: 0.875rem;">
+          Your POS is online on your local network. Other cashiers, laptops, phones, and tablets can connect simultaneously!
+        </p>
+
+        <div style="background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: var(--radius-md); padding: 1rem; margin-bottom: 1.25rem;">
+          <div style="font-size: 0.75rem; font-weight: bold; color: #64748b; text-transform: uppercase; margin-bottom: 0.35rem;">
+            Wi-Fi / LAN Network Address
+          </div>
+          <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; flex-wrap: wrap;">
+            <code id="netModalUrl" style="font-size: 1.25rem; font-weight: 800; color: #065f46; background: #ffffff; padding: 4px 10px; border-radius: 6px; border: 1px solid #a7f3d0;">
+              http://192.168.1.101:3000
+            </code>
+            <button class="btn btn-sm btn-primary" id="btnCopyNetworkUrl" title="Copy to clipboard">
+              📋 Copy
+            </button>
+          </div>
+          <div id="copySuccessMsg" style="font-size: 0.75rem; color: #059669; font-weight: bold; margin-top: 4px; display: none;">
+            ✓ Copied to clipboard!
+          </div>
+        </div>
+
+        <div style="margin-bottom: 1rem;">
+          <div style="font-size: 0.85rem; font-weight: 700; margin-bottom: 0.5rem;">
+            📷 Scan with Phone or Tablet Camera to Open:
+          </div>
+          <div id="qrCodeContainer" style="display: flex; justify-content: center;"></div>
+        </div>
+
+        <div style="text-align: left; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 0.75rem; font-size: 0.8rem; color: #166534;">
+          <strong>💡 Multi-Terminal Supermarket Setup:</strong>
+          <ul style="margin-left: 1.2rem; margin-top: 0.3rem;">
+            <li>Make sure the phone or tablet is connected to the same Wi-Fi.</li>
+            <li>All terminals share the same live product stock and sales database in real time.</li>
+            <li>Phones and tablets can use their built-in camera as a wireless barcode scanner!</li>
+          </ul>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="btnCloseNetworkModalBtn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PRINT ONLY RECEIPT CONTAINER -->
+  <div id="printOnlyReceipt" class="print-only"></div>
+
+  <!-- SCRIPT FILES -->
+  <script src="/js/qrcode.js"></script>
+  <script src="/js/barcode-gen.js"></script>
+  <script src="/js/scanner.js"></script>
+  <script src="/js/receipt.js"></script>
+  <script src="/js/pos.js"></script>
+  <script src="/js/inventory.js"></script>
+  <script src="/js/reports.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

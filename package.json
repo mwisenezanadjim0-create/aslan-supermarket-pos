@@ -2,7 +2,6 @@
   "name": "aslan-supermarket-pos",
   "version": "1.0.0",
   "description": "Aslan Supermarket Point of Sale (POS) and Inventory Management System",
-  "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
@@ -15,7 +14,7 @@
     "reports"
   ],
   "engines": {
-    "node": ">=22.x"
+    "node": ">=20.x"
   },
   "author": "Aslan Supermarket",
   "license": "ISC"
