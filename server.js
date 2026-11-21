@@ -137,7 +137,7 @@ async function handleRequest(req, res) {
     try {
       // 1. GET /api/settings - Fetch store configuration
       if (pathname === '/api/settings' && method === 'GET') {
-        const rows = db.prepare('SELECT key, value FROM settings').all();
+        const rows = await db.prepare('SELECT key, value FROM settings').all();
         const settings = {};
         for (const r of rows) settings[r.key] = r.value;
         return sendJson(res, 200, { success: true, settings });
@@ -148,7 +148,7 @@ async function handleRequest(req, res) {
         const body = await parseJsonBody(req);
         const updateStmt = db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
         for (const [k, v] of Object.entries(body)) {
-          updateStmt.run(k, String(v));
+          await updateStmt.run(k, String(v));
         }
         return sendJson(res, 200, { success: true, message: 'Settings saved' });
       }
@@ -189,7 +189,7 @@ async function handleRequest(req, res) {
         }
 
         query += ' ORDER BY name ASC';
-        const products = db.prepare(query).all(...params);
+        const products = await db.prepare(query).all(...params);
 
         // Add computed expiry & stock flags
         const enriched = products.map(p => {
@@ -218,7 +218,7 @@ async function handleRequest(req, res) {
       const barcodeLookupMatch = pathname.match(/^\/api\/products\/lookup\/(.+)$/);
       if (barcodeLookupMatch && method === 'GET') {
         const barcode = decodeURIComponent(barcodeLookupMatch[1]).trim();
-        const product = db.prepare('SELECT * FROM products WHERE barcode = ?').get(barcode);
+        const product = await db.prepare('SELECT * FROM products WHERE barcode = ?').get(barcode);
 
         if (!product) {
           return sendJson(res, 404, { success: false, message: `Product with barcode "${barcode}" not found.` });
@@ -255,7 +255,7 @@ async function handleRequest(req, res) {
         }
 
         // Check duplicate barcode
-        const existing = db.prepare('SELECT id FROM products WHERE barcode = ?').get(barcode.trim());
+        const existing = await db.prepare('SELECT id FROM products WHERE barcode = ?').get(barcode.trim());
         if (existing) {
           return sendJson(res, 409, { success: false, message: `A product with barcode "${barcode}" already exists!` });
         }
@@ -265,7 +265,7 @@ async function handleRequest(req, res) {
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
 
-        const result = insertStmt.run(
+        const result = await insertStmt.run(
           barcode.trim(),
           name.trim(),
           category || 'General',
@@ -287,14 +287,14 @@ async function handleRequest(req, res) {
         const id = parseInt(productUpdateMatch[1], 10);
         const body = await parseJsonBody(req);
 
-        const current = db.prepare('SELECT * FROM products WHERE id = ?').get(id);
+        const current = await db.prepare('SELECT * FROM products WHERE id = ?').get(id);
         if (!current) {
           return sendJson(res, 404, { success: false, message: 'Product not found' });
         }
 
         // Check barcode collision if barcode changed
         if (body.barcode && body.barcode !== current.barcode) {
-          const dup = db.prepare('SELECT id FROM products WHERE barcode = ? AND id != ?').get(body.barcode.trim(), id);
+          const dup = await db.prepare('SELECT id FROM products WHERE barcode = ? AND id != ?').get(body.barcode.trim(), id);
           if (dup) {
             return sendJson(res, 409, { success: false, message: 'Barcode is already assigned to another product' });
           }
@@ -308,7 +308,7 @@ async function handleRequest(req, res) {
           WHERE id = ?
         `);
 
-        updateStmt.run(
+        await updateStmt.run(
           (body.barcode || current.barcode).trim(),
           (body.name || current.name).trim(),
           body.category || current.category,
@@ -328,7 +328,7 @@ async function handleRequest(req, res) {
       // 6. DELETE /api/products/:id - Delete product
       if (productUpdateMatch && method === 'DELETE') {
         const id = parseInt(productUpdateMatch[1], 10);
-        db.prepare('DELETE FROM products WHERE id = ?').run(id);
+        await db.prepare('DELETE FROM products WHERE id = ?').run(id);
         return sendJson(res, 200, { success: true, message: 'Product deleted' });
       }
 
@@ -343,7 +343,7 @@ async function handleRequest(req, res) {
 
         // Validate stock for all items
         for (const item of items) {
-          const prod = db.prepare('SELECT id, name, stock FROM products WHERE id = ?').get(item.id);
+          const prod = await db.prepare('SELECT id, name, stock FROM products WHERE id = ?').get(item.id);
           if (!prod) {
             return sendJson(res, 400, { success: false, message: `Product "${item.name}" no longer exists in inventory.` });
           }
@@ -372,8 +372,8 @@ async function handleRequest(req, res) {
 
         // Generate receipt number REC-YYYYMMDD-XXXX
         const todayStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
-        const countToday = db.prepare("SELECT COUNT(*) as count FROM orders WHERE receipt_no LIKE ?").get(`REC-${todayStr}-%`);
-        const nextNum = String(countToday.count + 1).padStart(4, '0');
+        const countToday = await db.prepare("SELECT COUNT(*) as count FROM orders WHERE receipt_no LIKE ?").get(`REC-${todayStr}-%`);
+        const nextNum = String((countToday?.count || 0) + 1).padStart(4, '0');
         const receiptNo = `REC-${todayStr}-${nextNum}`;
 
         // Insert order
@@ -382,7 +382,7 @@ async function handleRequest(req, res) {
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed')
         `);
 
-        const orderResult = insertOrder.run(
+        const orderResult = await insertOrder.run(
           receiptNo,
           cashier_name,
           customer_name,
@@ -412,7 +412,7 @@ async function handleRequest(req, res) {
 
         for (const item of items) {
           const itemTotal = Math.round(item.selling_price * item.quantity * 100) / 100;
-          insertOrderItem.run(
+          await insertOrderItem.run(
             orderId,
             item.id,
             item.barcode,
@@ -423,12 +423,12 @@ async function handleRequest(req, res) {
             item.quantity,
             itemTotal
           );
-          deductStock.run(item.quantity, item.id);
+          await deductStock.run(item.quantity, item.id);
         }
 
         // Return order with receipt information
-        const createdOrder = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
-        const orderItems = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(orderId);
+        const createdOrder = await db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+        const orderItems = await db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(orderId);
 
         return sendJson(res, 201, {
           success: true,
@@ -461,7 +461,7 @@ async function handleRequest(req, res) {
         query += ' ORDER BY created_at DESC LIMIT ?';
         params.push(limit);
 
-        const orders = db.prepare(query).all(...params);
+        const orders = await db.prepare(query).all(...params);
         return sendJson(res, 200, { success: true, count: orders.length, orders });
       }
 
@@ -469,16 +469,16 @@ async function handleRequest(req, res) {
       const orderDetailsMatch = pathname.match(/^\/api\/orders\/(\d+)$/);
       if (orderDetailsMatch && method === 'GET') {
         const id = parseInt(orderDetailsMatch[1], 10);
-        const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
+        const order = await db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
         if (!order) return sendJson(res, 404, { success: false, message: 'Order not found' });
-        const items = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(id);
+        const items = await db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(id);
         return sendJson(res, 200, { success: true, order: { ...order, items } });
       }
 
       // 10. GET /api/reports/summary - Key statistics for Day, Week, Month, Year
       if (pathname === '/api/reports/summary' && method === 'GET') {
         // Daily stats (Today)
-        const daily = db.prepare(`
+        const daily = await db.prepare(`
           SELECT
             COUNT(*) as orders_count,
             COALESCE(SUM(total), 0) as total_sales,
@@ -489,7 +489,7 @@ async function handleRequest(req, res) {
         `).get();
 
         // Weekly stats (Current Week: Monday to Sunday)
-        const weekly = db.prepare(`
+        const weekly = await db.prepare(`
           SELECT
             COUNT(*) as orders_count,
             COALESCE(SUM(total), 0) as total_sales,
@@ -501,7 +501,7 @@ async function handleRequest(req, res) {
         `).get();
 
         // Monthly stats (Current Month)
-        const monthly = db.prepare(`
+        const monthly = await db.prepare(`
           SELECT
             COUNT(*) as orders_count,
             COALESCE(SUM(total), 0) as total_sales,
@@ -513,7 +513,7 @@ async function handleRequest(req, res) {
         `).get();
 
         // Yearly stats (Current Year)
-        const yearly = db.prepare(`
+        const yearly = await db.prepare(`
           SELECT
             COUNT(*) as orders_count,
             COALESCE(SUM(total), 0) as total_sales,
@@ -525,7 +525,7 @@ async function handleRequest(req, res) {
         `).get();
 
         // Inventory health stats
-        const inventory = db.prepare(`
+        const inventory = await db.prepare(`
           SELECT
             COUNT(*) as total_items,
             SUM(stock) as total_units,
@@ -557,7 +557,7 @@ async function handleRequest(req, res) {
         let rows = [];
         if (period === 'daily') {
           // Last 7 days breakdown
-          rows = db.prepare(`
+          rows = await db.prepare(`
             SELECT
               date(created_at, 'localtime') as period_label,
               COUNT(*) as order_count,
@@ -572,7 +572,7 @@ async function handleRequest(req, res) {
           `).all();
         } else if (period === 'weekly') {
           // Last 8 weeks breakdown
-          rows = db.prepare(`
+          rows = await db.prepare(`
             SELECT
               strftime('%Y-W%W', created_at, 'localtime') as period_label,
               COUNT(*) as order_count,
@@ -587,7 +587,7 @@ async function handleRequest(req, res) {
           `).all();
         } else if (period === 'monthly') {
           // All 12 months for current year
-          rows = db.prepare(`
+          rows = await db.prepare(`
             SELECT
               strftime('%Y-%m', created_at, 'localtime') as period_label,
               COUNT(*) as order_count,
@@ -602,7 +602,7 @@ async function handleRequest(req, res) {
           `).all();
         } else if (period === 'yearly') {
           // Year by year
-          rows = db.prepare(`
+          rows = await db.prepare(`
             SELECT
               strftime('%Y', created_at, 'localtime') as period_label,
               COUNT(*) as order_count,
@@ -621,7 +621,7 @@ async function handleRequest(req, res) {
 
       // 12. GET /api/reports/top-products
       if (pathname === '/api/reports/top-products' && method === 'GET') {
-        const topProducts = db.prepare(`
+        const topProducts = await db.prepare(`
           SELECT
             product_name,
             barcode,
@@ -640,7 +640,7 @@ async function handleRequest(req, res) {
 
       // 13. GET /api/reports/categories
       if (pathname === '/api/reports/categories' && method === 'GET') {
-        const categories = db.prepare(`
+        const categories = await db.prepare(`
           SELECT
             category,
             SUM(quantity) as units_sold,
@@ -656,7 +656,7 @@ async function handleRequest(req, res) {
 
       // 14. GET /api/categories - List distinct categories
       if (pathname === '/api/categories' && method === 'GET') {
-        const cats = db.prepare('SELECT DISTINCT category FROM products ORDER BY category ASC').all();
+        const cats = await db.prepare('SELECT DISTINCT category FROM products ORDER BY category ASC').all();
         return sendJson(res, 200, { success: true, categories: cats.map(c => c.category) });
       }
 
@@ -676,10 +676,10 @@ async function handleRequest(req, res) {
 
       // 16. GET /api/backup - Download complete database snapshot (JSON)
       if (pathname === '/api/backup' && method === 'GET') {
-        const settings = db.prepare('SELECT key, value FROM settings').all();
-        const products = db.prepare('SELECT * FROM products').all();
-        const orders = db.prepare('SELECT * FROM orders').all();
-        const orderItems = db.prepare('SELECT * FROM order_items').all();
+        const settings = await db.prepare('SELECT key, value FROM settings').all();
+        const products = await db.prepare('SELECT * FROM products').all();
+        const orders = await db.prepare('SELECT * FROM orders').all();
+        const orderItems = await db.prepare('SELECT * FROM order_items').all();
 
         const backupData = {
           version: '1.0',
@@ -716,9 +716,9 @@ async function handleRequest(req, res) {
         // Restore products
         let restoredCount = 0;
         for (const p of backup.products) {
-          const existing = db.prepare('SELECT id FROM products WHERE barcode = ?').get(p.barcode);
+          const existing = await db.prepare('SELECT id FROM products WHERE barcode = ?').get(p.barcode);
           if (existing) {
-            db.prepare(`
+            await db.prepare(`
               UPDATE products
               SET name = ?, category = ?, cost_price = ?, selling_price = ?, stock = ?,
                   low_stock_threshold = ?, unit = ?, expiry_date = ?, supplier = ?
@@ -726,7 +726,7 @@ async function handleRequest(req, res) {
             `).run(p.name, p.category, p.cost_price, p.selling_price, p.stock,
                    p.low_stock_threshold || 5, p.unit || 'pcs', p.expiry_date, p.supplier || '', p.barcode);
           } else {
-            db.prepare(`
+            await db.prepare(`
               INSERT INTO products (barcode, name, category, cost_price, selling_price, stock, low_stock_threshold, unit, expiry_date, supplier)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `).run(p.barcode, p.name, p.category, p.cost_price, p.selling_price, p.stock,
@@ -739,7 +739,7 @@ async function handleRequest(req, res) {
         if (Array.isArray(backup.settings)) {
           const stmt = db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
           for (const s of backup.settings) {
-            if (s.key && s.value) stmt.run(s.key, s.value);
+            if (s.key && s.value) await stmt.run(s.key, s.value);
           }
         }
 
